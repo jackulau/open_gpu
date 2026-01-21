@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <style>
+      .field { stroke: #2d3748; stroke-width: 1.5; }
+      .title { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #1a202c; }
+      .label { font-family: monospace; font-size: 11px; fill: #2d3748; }
+      .bits { font-family: monospace; font-size: 9px; fill: #718096; }
+      .type-label { font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; fill: #4a5568; }
+      .example { font-family: monospace; font-size: 10px; fill: #553c9a; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="25" text-anchor="middle" class="title" style="font-size: 16px;">OpenGPU Instruction Formats (32-bit)</text>
+
+  <!-- Bit positions header -->
+  <text x="190" y="50" text-anchor="middle" class="bits">31    26</text>
+  <text x="260" y="50" text-anchor="middle" class="bits">25  21</text>
+  <text x="330" y="50" text-anchor="middle" class="bits">20  16</text>
+  <text x="400" y="50" text-anchor="middle" class="bits">15  11</text>
+  <text x="540" y="50" text-anchor="middle" class="bits">10           0</text>
+
+  <!-- R-Type -->
+  <text x="50" y="85" class="type-label">R-Type</text>
+  <rect x="140" y="65" width="100" height="30" class="field" fill="#fed7d7"/>
+  <text x="190" y="85" text-anchor="middle" class="label">opcode</text>
+  <rect x="240" y="65" width="70" height="30" class="field" fill="#feebc8"/>
+  <text x="275" y="85" text-anchor="middle" class="label">rd</text>
+  <rect x="310" y="65" width="70" height="30" class="field" fill="#c6f6d5"/>
+  <text x="345" y="85" text-anchor="middle" class="label">rs1</text>
+  <rect x="380" y="65" width="70" height="30" class="field" fill="#bee3f8"/>
+  <text x="415" y="85" text-anchor="middle" class="label">rs2</text>
+  <rect x="450" y="65" width="180" height="30" class="field" fill="#e9d8fd"/>
+  <text x="540" y="85" text-anchor="middle" class="label">func</text>
+  <text x="680" y="85" class="example">ADD x9, x7, x8</text>
+
+  <!-- I-Type -->
+  <text x="50" y="135" class="type-label">I-Type</text>
+  <rect x="140" y="115" width="100" height="30" class="field" fill="#fed7d7"/>
+  <text x="190" y="135" text-anchor="middle" class="label">opcode</text>
+  <rect x="240" y="115" width="70" height="30" class="field" fill="#feebc8"/>
+  <text x="275" y="135" text-anchor="middle" class="label">rd</text>
+  <rect x="310" y="115" width="70" height="30" class="field" fill="#c6f6d5"/>
+  <text x="345" y="135" text-anchor="middle" class="label">rs1</text>
+  <rect x="380" y="115" width="250" height="30" class="field" fill="#fef3c7"/>
+  <text x="505" y="135" text-anchor="middle" class="label">imm16 (signed)</text>
+  <text x="680" y="135" class="example">ADDI x7, x0, 42</text>
+
+  <!-- S-Type (Store) -->
+  <text x="50" y="185" class="type-label">S-Type</text>
+  <rect x="140" y="165" width="100" height="30" class="field" fill="#fed7d7"/>
+  <text x="190" y="185" text-anchor="middle" class="label">opcode</text>
+  <rect x="240" y="165" width="70" height="30" class="field" fill="#bee3f8"/>
+  <text x="275" y="185" text-anchor="middle" class="label">rs2</text>
+  <rect x="310" y="165" width="70" height="30" class="field" fill="#c6f6d5"/>
+  <text x="345" y="185" text-anchor="middle" class="label">rs1</text>
+  <rect x="380" y="165" width="250" height="30" class="field" fill="#fef3c7"/>
+  <text x="505" y="185" text-anchor="middle" class="label">offset (signed)</text>
+  <text x="680" y="185" class="example">SW x9, 8(x10)</text>
+
+  <!-- B-Type (Branch) -->
+  <text x="50" y="235" class="type-label">B-Type</text>
+  <rect x="140" y="215" width="100" height="30" class="field" fill="#fed7d7"/>
+  <text x="190" y="235" text-anchor="middle" class="label">opcode</text>
+  <rect x="240" y="215" width="70" height="30" class="field" fill="#bee3f8"/>
+  <text x="275" y="235" text-anchor="middle" class="label">rs2</text>
+  <rect x="310" y="215" width="70" height="30" class="field" fill="#c6f6d5"/>
+  <text x="345" y="235" text-anchor="middle" class="label">rs1</text>
+  <rect x="380" y="215" width="250" height="30" class="field" fill="#fed7e2"/>
+  <text x="505" y="235" text-anchor="middle" class="label">offset (PC-relative)</text>
+  <text x="680" y="235" class="example">BEQ x7, x8, -12</text>
+
+  <!-- U-Type -->
+  <text x="50" y="285" class="type-label">U-Type</text>
+  <rect x="140" y="265" width="100" height="30" class="field" fill="#fed7d7"/>
+  <text x="190" y="285" text-anchor="middle" class="label">opcode</text>
+  <rect x="240" y="265" width="70" height="30" class="field" fill="#feebc8"/>
+  <text x="275" y="285" text-anchor="middle" class="label">rd</text>
+  <rect x="310" y="265" width="320" height="30" class="field" fill="#d6bcfa"/>
+  <text x="470" y="285" text-anchor="middle" class="label">imm21 (upper bits)</text>
+  <text x="680" y="285" class="example">LUI x7, 0x12345</text>
+
+  <!-- Legend -->
+  <rect x="140" y="320" width="490" height="60" rx="5" fill="#f7fafc" stroke="#e2e8f0"/>
+  <text x="160" y="340" class="type-label">Field Widths:</text>
+  <text x="160" y="360" class="bits">opcode: 6 bits  |  rd/rs1/rs2: 5 bits each  |  func: 11 bits</text>
+  <text x="160" y="375" class="bits">imm16: 16 bits (signed)  |  imm21: 21 bits  |  offset: 16 bits (signed, PC-relative)</text>
+
+</svg>

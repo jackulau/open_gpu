@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 550" width="700" height="550">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+    <style>
+      .core-box { fill: #e6fffa; stroke: #234e52; stroke-width: 2; }
+      .sched-box { fill: #fef3c7; stroke: #92400e; stroke-width: 2; }
+      .cache-box { fill: #c6f6d5; stroke: #276749; stroke-width: 2; }
+      .lds-box { fill: #e9d8fd; stroke: #553c9a; stroke-width: 2; }
+      .ctrl-box { fill: #fed7e2; stroke: #97266d; stroke-width: 2; }
+      .title { font-family: Arial, sans-serif; font-size: 14px; font-weight: bold; fill: #1a202c; }
+      .label { font-family: Arial, sans-serif; font-size: 11px; fill: #4a5568; }
+      .small { font-family: Arial, sans-serif; font-size: 9px; fill: #718096; }
+      .arrow { stroke: #4a5568; stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+      .bus { stroke: #2d3748; stroke-width: 2; fill: none; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="350" y="25" text-anchor="middle" class="title" style="font-size: 16px;">Streaming Multiprocessor (SM) Internal Architecture</text>
+
+  <!-- SM Controller -->
+  <rect x="200" y="40" width="300" height="35" rx="5" class="ctrl-box"/>
+  <text x="350" y="60" text-anchor="middle" class="title">SM Controller</text>
+  <text x="350" y="72" text-anchor="middle" class="small">Block Assignment | Resource Tracking</text>
+
+  <!-- Warp Scheduler -->
+  <rect x="200" y="85" width="300" height="40" rx="5" class="sched-box"/>
+  <text x="350" y="105" text-anchor="middle" class="title">Warp Scheduler</text>
+  <text x="350" y="118" text-anchor="middle" class="small">GTO Policy | Scoreboard | 16 Warp Slots</text>
+
+  <!-- Cores -->
+  <g transform="translate(30, 140)">
+    <rect x="0" y="0" width="150" height="180" rx="5" class="core-box"/>
+    <text x="75" y="20" text-anchor="middle" class="title">Core 0</text>
+
+    <rect x="10" y="30" width="130" height="20" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="44" text-anchor="middle" class="small">SIMT Stack (8 entries)</text>
+
+    <rect x="10" y="55" width="130" height="25" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="72" text-anchor="middle" class="label">Register File</text>
+    <text x="75" y="78" text-anchor="middle" class="small">32 threads × 32 regs</text>
+
+    <rect x="10" y="85" width="130" height="45" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="100" text-anchor="middle" class="label">5-Stage Pipeline</text>
+    <text x="75" y="112" text-anchor="middle" class="small">IF→ID→EX→MEM→WB</text>
+    <text x="75" y="124" text-anchor="middle" class="small">Hazard Detection</text>
+
+    <rect x="10" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="40" y="152" text-anchor="middle" class="small">INT ALU</text>
+    <text x="40" y="163" text-anchor="middle" class="small">(32-wide)</text>
+
+    <rect x="80" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="110" y="152" text-anchor="middle" class="small">FP ALU</text>
+    <text x="110" y="163" text-anchor="middle" class="small">(32-wide)</text>
+  </g>
+
+  <g transform="translate(200, 140)">
+    <rect x="0" y="0" width="150" height="180" rx="5" class="core-box"/>
+    <text x="75" y="20" text-anchor="middle" class="title">Core 1</text>
+    <rect x="10" y="30" width="130" height="20" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="44" text-anchor="middle" class="small">SIMT Stack</text>
+    <rect x="10" y="55" width="130" height="25" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="72" text-anchor="middle" class="label">Register File</text>
+    <rect x="10" y="85" width="130" height="45" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="112" text-anchor="middle" class="label">Pipeline</text>
+    <rect x="10" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="40" y="155" text-anchor="middle" class="small">INT</text>
+    <rect x="80" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="110" y="155" text-anchor="middle" class="small">FP</text>
+  </g>
+
+  <g transform="translate(370, 140)">
+    <rect x="0" y="0" width="150" height="180" rx="5" class="core-box"/>
+    <text x="75" y="20" text-anchor="middle" class="title">Core 2</text>
+    <rect x="10" y="30" width="130" height="20" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="44" text-anchor="middle" class="small">SIMT Stack</text>
+    <rect x="10" y="55" width="130" height="25" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="72" text-anchor="middle" class="label">Register File</text>
+    <rect x="10" y="85" width="130" height="45" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="112" text-anchor="middle" class="label">Pipeline</text>
+    <rect x="10" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="40" y="155" text-anchor="middle" class="small">INT</text>
+    <rect x="80" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="110" y="155" text-anchor="middle" class="small">FP</text>
+  </g>
+
+  <g transform="translate(540, 140)">
+    <rect x="0" y="0" width="150" height="180" rx="5" class="core-box"/>
+    <text x="75" y="20" text-anchor="middle" class="title">Core 3</text>
+    <rect x="10" y="30" width="130" height="20" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="44" text-anchor="middle" class="small">SIMT Stack</text>
+    <rect x="10" y="55" width="130" height="25" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="72" text-anchor="middle" class="label">Register File</text>
+    <rect x="10" y="85" width="130" height="45" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="75" y="112" text-anchor="middle" class="label">Pipeline</text>
+    <rect x="10" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="40" y="155" text-anchor="middle" class="small">INT</text>
+    <rect x="80" y="135" width="60" height="35" rx="3" fill="#fff" stroke="#234e52"/>
+    <text x="110" y="155" text-anchor="middle" class="small">FP</text>
+  </g>
+
+  <!-- Shared Resources Section -->
+  <text x="350" y="345" text-anchor="middle" class="title">Shared Resources</text>
+  <line x1="50" y1="350" x2="650" y2="350" stroke="#cbd5e0" stroke-width="1"/>
+
+  <!-- L1 I-Cache -->
+  <rect x="30" y="365" width="140" height="60" rx="5" class="cache-box"/>
+  <text x="100" y="390" text-anchor="middle" class="title">L1 I-Cache</text>
+  <text x="100" y="405" text-anchor="middle" class="small">16 KB</text>
+  <text x="100" y="418" text-anchor="middle" class="small">4-way, 64B lines</text>
+
+  <!-- L1 D-Cache -->
+  <rect x="190" y="365" width="140" height="60" rx="5" class="cache-box"/>
+  <text x="260" y="390" text-anchor="middle" class="title">L1 D-Cache</text>
+  <text x="260" y="405" text-anchor="middle" class="small">32 KB</text>
+  <text x="260" y="418" text-anchor="middle" class="small">4-way, 128B lines</text>
+
+  <!-- Coalescing Unit -->
+  <rect x="350" y="365" width="120" height="60" rx="5" fill="#feebc8" stroke="#c05621" stroke-width="2"/>
+  <text x="410" y="390" text-anchor="middle" class="title">Coalescer</text>
+  <text x="410" y="405" text-anchor="middle" class="small">32 requests →</text>
+  <text x="410" y="418" text-anchor="middle" class="small">1-4 transactions</text>
+
+  <!-- Local Data Share -->
+  <rect x="490" y="365" width="180" height="60" rx="5" class="lds-box"/>
+  <text x="580" y="385" text-anchor="middle" class="title">Local Data Share (LDS)</text>
+  <text x="580" y="400" text-anchor="middle" class="small">64 KB Shared Memory</text>
+  <text x="580" y="413" text-anchor="middle" class="small">32 Banks × 4 Bytes</text>
+  <text x="580" y="425" text-anchor="middle" class="small">Bank Conflict Detection</text>
+
+  <!-- Connection to L2 -->
+  <rect x="200" y="450" width="300" height="35" rx="5" fill="#e2e8f0" stroke="#4a5568" stroke-width="2"/>
+  <text x="350" y="472" text-anchor="middle" class="title">To L2 Cache / Memory Interconnect</text>
+
+  <!-- Arrows -->
+  <line x1="100" y1="425" x2="100" y2="445" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="100" y1="445" x2="200" y2="445" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="260" y1="425" x2="260" y2="450" stroke="#4a5568" stroke-width="1.5"/>
+  <line x1="410" y1="425" x2="410" y2="450" stroke="#4a5568" stroke-width="1.5"/>
+
+  <!-- Legend -->
+  <rect x="30" y="500" width="640" height="40" rx="5" fill="#f7fafc" stroke="#e2e8f0"/>
+  <text x="50" y="520" class="label">Legend:</text>
+  <rect x="100" y="510" width="20" height="15" class="core-box"/>
+  <text x="125" y="522" class="small">Compute Core</text>
+  <rect x="200" y="510" width="20" height="15" class="cache-box"/>
+  <text x="225" y="522" class="small">Cache</text>
+  <rect x="280" y="510" width="20" height="15" class="lds-box"/>
+  <text x="305" y="522" class="small">Shared Memory</text>
+  <rect x="390" y="510" width="20" height="15" class="sched-box"/>
+  <text x="415" y="522" class="small">Scheduler</text>
+  <rect x="480" y="510" width="20" height="15" class="ctrl-box"/>
+  <text x="505" y="522" class="small">Controller</text>
+
+  <!-- Specs Box -->
+  <rect x="540" y="495" width="120" height="45" rx="3" fill="#edf2f7" stroke="#a0aec0"/>
+  <text x="600" y="510" text-anchor="middle" class="label" style="font-weight:bold;">SM Specs</text>
+  <text x="600" y="522" text-anchor="middle" class="small">4 Cores | 16 Warps</text>
+  <text x="600" y="534" text-anchor="middle" class="small">512 Threads Max</text>
+
+</svg>
