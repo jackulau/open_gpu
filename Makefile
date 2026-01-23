@@ -63,6 +63,10 @@ assemble:
 assemble-all:
 	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/test_arithmetic.asm
 	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/test_loop.asm
+	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/vector_add.asm
+	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/matrix_mul.asm
+	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/reduction.asm
+	$(PYTHON) $(SW_DIR)/assembler/opengpu_asm.py $(SW_DIR)/kernels/fp_test.asm
 
 # Clean build artifacts
 clean:
