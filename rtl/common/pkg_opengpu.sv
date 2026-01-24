@@ -328,4 +328,162 @@ package pkg_opengpu;
     return (op == FPU_DIV || op == FPU_SQRT);
   endfunction
 
+  // ==========================================================================
+  // SIMT Execution Types and Parameters
+  // ==========================================================================
+
+  // SIMT stack configuration
+  parameter int SIMT_STACK_DEPTH = 32;  // Max nesting depth for divergence
+  parameter int WARP_ID_WIDTH = 2;      // log2(WARPS_PER_CORE)
+  parameter int LANE_ID_WIDTH = 5;      // log2(WARP_SIZE)
+
+  // FPU SIMD configuration
+  parameter int FPU_LANES = 8;          // Number of FPU lanes (32/8 = 4 cycles per warp)
+  parameter int FPU_CYCLES_PER_WARP = WARP_SIZE / FPU_LANES;
+
+  // Memory coalescing
+  parameter int CACHE_LINE_SIZE = 64;   // Cache line size in bytes
+  parameter int COALESCE_WIDTH = 128;   // Max coalesced transaction width in bits
+
+  // Warp status enum
+  typedef enum logic [2:0] {
+    WARP_IDLE     = 3'd0,   // Not initialized
+    WARP_READY    = 3'd1,   // Ready to execute
+    WARP_RUNNING  = 3'd2,   // Currently executing
+    WARP_WAITING  = 3'd3,   // Waiting on memory/sync
+    WARP_BLOCKED  = 3'd4,   // Blocked on barrier
+    WARP_DONE     = 3'd5    // Execution complete
+  } warp_status_t;
+
+  // Scheduler policy enum
+  typedef enum logic [1:0] {
+    SCHED_GTO     = 2'd0,   // Greedy-Then-Oldest
+    SCHED_RR      = 2'd1,   // Round-Robin
+    SCHED_LRR     = 2'd2    // Loose Round-Robin
+  } sched_policy_t;
+
+  // SIMT stack entry - stores divergence context
+  typedef struct packed {
+    logic [DATA_WIDTH-1:0]    reconvergence_pc;  // PC where paths reconverge
+    logic [WARP_SIZE-1:0]     active_mask;       // Original active mask before divergence
+    logic [WARP_SIZE-1:0]     taken_mask;        // Mask of threads that took the branch
+  } simt_stack_entry_t;
+
+  // Warp context - per-warp state
+  typedef struct packed {
+    logic [DATA_WIDTH-1:0]    pc;                // Program counter
+    logic [WARP_SIZE-1:0]     active_mask;       // Current active thread mask
+    warp_status_t             status;            // Warp execution status
+    logic [7:0]               age;               // Age counter for GTO scheduling
+    logic                     valid;             // Warp is valid/initialized
+  } warp_context_t;
+
+  // Branch divergence info
+  typedef struct packed {
+    logic                     is_divergent;      // Branch causes divergence
+    logic [WARP_SIZE-1:0]     taken_mask;        // Threads taking the branch
+    logic [WARP_SIZE-1:0]     not_taken_mask;    // Threads not taking the branch
+    logic [DATA_WIDTH-1:0]    taken_pc;          // PC for taken path
+    logic [DATA_WIDTH-1:0]    not_taken_pc;      // PC for not-taken path (reconvergence)
+  } divergence_info_t;
+
+  // Vote operation types
+  typedef enum logic [1:0] {
+    VOTE_ALL  = 2'd0,   // All active threads have predicate true
+    VOTE_ANY  = 2'd1,   // Any active thread has predicate true
+    VOTE_BAL  = 2'd2    // Ballot - return mask of threads with true predicate
+  } vote_op_t;
+
+  // Shuffle operation types
+  typedef enum logic [1:0] {
+    SHFL_IDX  = 2'd0,   // Indexed shuffle
+    SHFL_UP   = 2'd1,   // Shuffle up (lower lanes)
+    SHFL_DOWN = 2'd2,   // Shuffle down (higher lanes)
+    SHFL_XOR  = 2'd3    // XOR shuffle (butterfly)
+  } shuffle_op_t;
+
+  // Memory coalescing request
+  typedef struct packed {
+    logic [WARP_SIZE-1:0]     lane_valid;        // Which lanes have valid requests
+    logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] addr;  // Per-lane addresses
+    logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] wdata; // Per-lane write data
+    logic                     is_write;          // Write operation
+    mem_size_t                size;              // Access size
+  } coalesce_request_t;
+
+  // Memory coalescing response
+  typedef struct packed {
+    logic                     valid;             // Response valid
+    logic                     ready;             // All lanes serviced
+    logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] rdata; // Per-lane read data
+  } coalesce_response_t;
+
+  // SIMT decoded instruction extension
+  typedef struct packed {
+    decoded_instr_t           base;              // Base decoded instruction
+    logic [WARP_ID_WIDTH-1:0] warp_id;           // Source warp ID
+    logic [WARP_SIZE-1:0]     active_mask;       // Active thread mask
+    logic                     is_vote_op;        // Vote operation
+    logic                     is_shuffle_op;     // Shuffle operation
+    vote_op_t                 vote_op;           // Vote operation type
+    shuffle_op_t              shuffle_op;        // Shuffle operation type
+  } simt_decoded_instr_t;
+
+  // Utility functions for SIMT operations
+
+  // Check if operation is a vote operation
+  function automatic logic is_vote_op(input opcode_t op);
+    return (op == OP_VOTEALL || op == OP_VOTEANY || op == OP_VOTEBAL);
+  endfunction
+
+  // Check if operation is a shuffle operation
+  function automatic logic is_shuffle_op(input opcode_t op);
+    return (op == OP_SHFLIDX || op == OP_SHFLUP || op == OP_SHFLDN || op == OP_SHFLXOR);
+  endfunction
+
+  // Check if warp is eligible for scheduling
+  function automatic logic is_warp_eligible(input warp_context_t ctx);
+    return (ctx.valid && ctx.status == WARP_READY);
+  endfunction
+
+  // Population count (number of set bits)
+  function automatic logic [5:0] popcount32(input logic [31:0] mask);
+    logic [5:0] count;
+    count = '0;
+    for (int i = 0; i < 32; i++) begin
+      count = count + {5'b0, mask[i]};
+    end
+    return count;
+  endfunction
+
+  // Count leading zeros
+  function automatic logic [5:0] clz32(input logic [31:0] value);
+    logic [5:0] count;
+    logic found;
+    count = 6'd32;
+    found = 1'b0;
+    for (int i = 31; i >= 0; i--) begin
+      if (value[i] && !found) begin
+        count = 6'd31 - i[5:0];
+        found = 1'b1;
+      end
+    end
+    return count;
+  endfunction
+
+  // Find first set bit (returns lane index)
+  function automatic logic [4:0] ffs32(input logic [31:0] mask);
+    logic [4:0] idx;
+    logic found;
+    idx = '0;
+    found = 1'b0;
+    for (int i = 0; i < 32; i++) begin
+      if (mask[i] && !found) begin
+        idx = i[4:0];
+        found = 1'b1;
+      end
+    end
+    return idx;
+  endfunction
+
 endpackage
