@@ -186,6 +186,114 @@ module decode_stage
         decoded_comb.reg_write = 1'b1; decoded_comb.use_imm = 1'b1;
       end
 
+      // FPU R-type (2 operands)
+      OP_FADD: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_ADD;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FSUB: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_SUB;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FMUL: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_MUL;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FDIV: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_DIV;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FMIN: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_MIN;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FMAX: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_MAX;
+        decoded_comb.reg_write = 1'b1;
+      end
+
+      // FPU R-type (1 operand)
+      OP_FABS: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_ABS;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FNEG: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_NEG;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FSQRT: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_SQRT;
+        decoded_comb.reg_write = 1'b1;
+      end
+
+      // FPU conversions
+      OP_FCVTWS: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_CVTWS;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FCVTSW: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_CVTSW;
+        decoded_comb.reg_write = 1'b1;
+      end
+
+      // FPU comparisons (output integer 0/1)
+      OP_FCMPEQ: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_CMPEQ;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FCMPLT: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_CMPLT;
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FCMPLE: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_CMPLE;
+        decoded_comb.reg_write = 1'b1;
+      end
+
+      // FMADD/FMSUB: rs3 encoded in func field [10:6]
+      OP_FMADD: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_MADD;
+        decoded_comb.rs3 = instr[FUNC_MSB:FUNC_MSB-4];
+        decoded_comb.reg_write = 1'b1;
+      end
+      OP_FMSUB: begin
+        decoded_comb.itype = ITYPE_R;
+        decoded_comb.is_fpu_op = 1'b1;
+        decoded_comb.fpu_op = FPU_MSUB;
+        decoded_comb.rs3 = instr[FUNC_MSB:FUNC_MSB-4];
+        decoded_comb.reg_write = 1'b1;
+      end
+
       default: begin
         decoded_comb.itype = ITYPE_INV;
         decoded_comb.alu_op = ALU_NOP;

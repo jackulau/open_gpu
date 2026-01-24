@@ -177,6 +177,41 @@ package pkg_opengpu;
     ALU_NOP   = 5'd31
   } alu_op_t;
 
+  // FPU operation enum
+  typedef enum logic [3:0] {
+    FPU_ADD   = 4'd0,
+    FPU_SUB   = 4'd1,
+    FPU_MUL   = 4'd2,
+    FPU_DIV   = 4'd3,
+    FPU_MADD  = 4'd4,
+    FPU_MSUB  = 4'd5,
+    FPU_SQRT  = 4'd6,
+    FPU_ABS   = 4'd7,
+    FPU_NEG   = 4'd8,
+    FPU_MIN   = 4'd9,
+    FPU_MAX   = 4'd10,
+    FPU_CVTWS = 4'd11,
+    FPU_CVTSW = 4'd12,
+    FPU_CMPEQ = 4'd13,
+    FPU_CMPLT = 4'd14,
+    FPU_CMPLE = 4'd15
+  } fpu_op_t;
+
+  // IEEE 754 single precision constants
+  parameter int FP_EXP_WIDTH  = 8;
+  parameter int FP_MANT_WIDTH = 23;
+  parameter int FP_EXP_BIAS   = 127;
+
+  // FP classification
+  typedef enum logic [2:0] {
+    FP_ZERO     = 3'd0,
+    FP_DENORMAL = 3'd1,
+    FP_NORMAL   = 3'd2,
+    FP_INF      = 3'd3,
+    FP_SNAN     = 3'd4,
+    FP_QNAN     = 3'd5
+  } fp_class_t;
+
   typedef enum logic [2:0] {
     ITYPE_R    = 3'd0,
     ITYPE_I    = 3'd1,
@@ -192,9 +227,11 @@ package pkg_opengpu;
     opcode_t      opcode;
     instr_type_t  itype;
     alu_op_t      alu_op;
+    fpu_op_t      fpu_op;
     logic [REG_ADDR_WIDTH-1:0] rd;
     logic [REG_ADDR_WIDTH-1:0] rs1;
     logic [REG_ADDR_WIDTH-1:0] rs2;
+    logic [REG_ADDR_WIDTH-1:0] rs3;  // For FMADD/FMSUB
     logic [DATA_WIDTH-1:0] imm;
     logic         reg_write;
     logic         mem_read;
@@ -203,6 +240,7 @@ package pkg_opengpu;
     logic         jump;
     logic         is_ret;
     logic         use_imm;
+    logic         is_fpu_op;
   } decoded_instr_t;
 
   typedef enum logic [1:0] {
@@ -243,13 +281,14 @@ package pkg_opengpu;
   parameter int REG_LANE_ID   = 6;
 
   typedef enum logic [2:0] {
-    CORE_IDLE     = 3'd0,
-    CORE_FETCH    = 3'd1,
-    CORE_DECODE   = 3'd2,
-    CORE_EXECUTE  = 3'd3,
-    CORE_MEMORY   = 3'd4,
-    CORE_WRITEBACK = 3'd5,
-    CORE_DONE     = 3'd6
+    CORE_IDLE      = 3'd0,
+    CORE_FETCH     = 3'd1,
+    CORE_DECODE    = 3'd2,
+    CORE_EXECUTE   = 3'd3,
+    CORE_FPU_WAIT  = 3'd4,
+    CORE_MEMORY    = 3'd5,
+    CORE_WRITEBACK = 3'd6,
+    CORE_DONE      = 3'd7
   } core_state_t;
 
   // Utility functions
@@ -279,6 +318,14 @@ package pkg_opengpu;
 
   function automatic logic is_store_op(input opcode_t op);
     return (op >= OP_SW && op <= OP_SB) || (op == OP_LDSSW);
+  endfunction
+
+  function automatic logic is_fpu_op(input opcode_t op);
+    return (op >= OP_FADD && op <= OP_FCMPLE);
+  endfunction
+
+  function automatic logic is_multicycle_fpu_op(input fpu_op_t op);
+    return (op == FPU_DIV || op == FPU_SQRT);
   endfunction
 
 endpackage

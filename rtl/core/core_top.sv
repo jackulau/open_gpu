@@ -1,4 +1,4 @@
-// GPU compute core - FSM-based sequential execution
+// GPU compute core - FSM-based sequential execution with FPU support
 
 module core_top
   import pkg_opengpu::*;
@@ -43,8 +43,8 @@ module core_top
   decoded_instr_t decoded_instr;
 
   // Register file
-  logic [REG_ADDR_WIDTH-1:0] rs1_addr, rs2_addr;
-  logic [DATA_WIDTH-1:0] rs1_data, rs2_data;
+  logic [REG_ADDR_WIDTH-1:0] rs1_addr, rs2_addr, rs3_addr;
+  logic [DATA_WIDTH-1:0] rs1_data, rs2_data, rs3_data;
   logic rf_we;
   logic [REG_ADDR_WIDTH-1:0] rf_waddr;
   logic [DATA_WIDTH-1:0] rf_wdata;
@@ -55,6 +55,10 @@ module core_top
   logic alu_zero, alu_neg;
   logic [DATA_WIDTH-1:0] alu_op_a, alu_op_b;
 
+  // FPU
+  logic [DATA_WIDTH-1:0] fpu_result;
+  logic fpu_start, fpu_valid, fpu_busy;
+
   // Branch
   logic branch_taken;
   logic [ADDR_WIDTH-1:0] branch_target;
@@ -62,8 +66,8 @@ module core_top
 
   vector_regfile u_regfile (
     .clk(clk), .rst_n(rst_n),
-    .rs1_addr(rs1_addr), .rs2_addr(rs2_addr),
-    .rs1_data(rs1_data), .rs2_data(rs2_data),
+    .rs1_addr(rs1_addr), .rs2_addr(rs2_addr), .rs3_addr(rs3_addr),
+    .rs1_data(rs1_data), .rs2_data(rs2_data), .rs3_data(rs3_data),
     .we(rf_we), .rd_addr(rf_waddr), .rd_data(rf_wdata),
     .init_context(rf_init),
     .thread_idx(thread_idx), .block_idx(block_idx),
@@ -77,6 +81,23 @@ module core_top
     .result(alu_result), .zero_flag(alu_zero), .neg_flag(alu_neg)
   );
 
+  // FPU instantiation
+  fp_alu u_fpu (
+    .clk(clk),
+    .rst_n(rst_n),
+    .start(fpu_start),
+    .fpu_op(decoded_instr.fpu_op),
+    .operand_a(rs1_data),
+    .operand_b(rs2_data),
+    .operand_c(rs3_data),
+    .result(fpu_result),
+    .result_valid(fpu_valid),
+    .busy(fpu_busy)
+  );
+
+  // FPU start signal - issue FPU operation when entering execute state
+  assign fpu_start = (state == CORE_EXECUTE) && decoded_instr.is_fpu_op;
+
   // Decode
   assign rs1_addr = instr_reg[RS1_MSB:RS1_LSB];
 
@@ -85,12 +106,16 @@ module core_top
                instr_reg[RD_MSB:RD_LSB] : instr_reg[RS2_MSB:RS2_LSB];
   end
 
+  // rs3 for FMA operations - encoded in func field [10:6]
+  assign rs3_addr = instr_reg[FUNC_MSB:FUNC_MSB-4];
+
   always_comb begin
     decoded_instr = '0;
     decoded_instr.opcode = instr_reg[OPCODE_MSB:OPCODE_LSB];
     decoded_instr.rd     = instr_reg[RD_MSB:RD_LSB];
     decoded_instr.rs1    = instr_reg[RS1_MSB:RS1_LSB];
     decoded_instr.rs2    = rs2_addr;
+    decoded_instr.rs3    = rs3_addr;
 
     case (decoded_instr.opcode)
       OP_ADD:  begin decoded_instr.alu_op = ALU_ADD;  decoded_instr.reg_write = 1'b1; end
@@ -185,6 +210,24 @@ module core_top
         decoded_instr.reg_write = 1'b1; decoded_instr.use_imm = 1'b1;
       end
 
+      // FPU operations
+      OP_FADD: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_ADD;   decoded_instr.reg_write = 1'b1; end
+      OP_FSUB: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_SUB;   decoded_instr.reg_write = 1'b1; end
+      OP_FMUL: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_MUL;   decoded_instr.reg_write = 1'b1; end
+      OP_FDIV: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_DIV;   decoded_instr.reg_write = 1'b1; end
+      OP_FSQRT: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_SQRT; decoded_instr.reg_write = 1'b1; end
+      OP_FABS: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_ABS;   decoded_instr.reg_write = 1'b1; end
+      OP_FNEG: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_NEG;   decoded_instr.reg_write = 1'b1; end
+      OP_FMIN: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_MIN;   decoded_instr.reg_write = 1'b1; end
+      OP_FMAX: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_MAX;   decoded_instr.reg_write = 1'b1; end
+      OP_FCVTWS: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_CVTWS; decoded_instr.reg_write = 1'b1; end
+      OP_FCVTSW: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_CVTSW; decoded_instr.reg_write = 1'b1; end
+      OP_FCMPEQ: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_CMPEQ; decoded_instr.reg_write = 1'b1; end
+      OP_FCMPLT: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_CMPLT; decoded_instr.reg_write = 1'b1; end
+      OP_FCMPLE: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_CMPLE; decoded_instr.reg_write = 1'b1; end
+      OP_FMADD: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_MADD;  decoded_instr.reg_write = 1'b1; end
+      OP_FMSUB: begin decoded_instr.is_fpu_op = 1'b1; decoded_instr.fpu_op = FPU_MSUB;  decoded_instr.reg_write = 1'b1; end
+
       default: decoded_instr.alu_op = ALU_NOP;
     endcase
   end
@@ -270,6 +313,8 @@ module core_top
       rf_wdata = pc_reg + 4;
     else if (decoded_instr.mem_read)
       rf_wdata = mem_result;
+    else if (decoded_instr.is_fpu_op)
+      rf_wdata = fpu_result;
     else
       rf_wdata = alu_result;
   end
@@ -293,9 +338,15 @@ module core_top
       CORE_EXECUTE: begin
         if (decoded_instr.is_ret)
           next_state = CORE_DONE;
+        else if (decoded_instr.is_fpu_op && fpu_busy)
+          next_state = CORE_FPU_WAIT;
         else if (decoded_instr.mem_read || decoded_instr.mem_write)
           next_state = CORE_MEMORY;
         else
+          next_state = CORE_WRITEBACK;
+      end
+      CORE_FPU_WAIT: begin
+        if (fpu_valid)
           next_state = CORE_WRITEBACK;
       end
       CORE_MEMORY:    if (dmem_valid || !dmem_req) next_state = CORE_WRITEBACK;

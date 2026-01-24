@@ -1,4 +1,4 @@
-// Execute stage - ALU ops, branch eval, jump target calc
+// Execute stage - ALU ops, FPU ops, branch eval, jump target calc
 
 module execute_stage
   import pkg_opengpu::*;
@@ -14,6 +14,7 @@ module execute_stage
   // Register data
   input  logic [DATA_WIDTH-1:0]      rs1_data,
   input  logic [DATA_WIDTH-1:0]      rs2_data,
+  input  logic [DATA_WIDTH-1:0]      rs3_data,  // For FMA operations
 
   // Control
   input  logic                       stall,
@@ -28,7 +29,10 @@ module execute_stage
 
   // Branch control
   output logic                       branch_taken,
-  output logic [ADDR_WIDTH-1:0]      branch_target
+  output logic [ADDR_WIDTH-1:0]      branch_target,
+
+  // FPU stall (for multi-cycle operations)
+  output logic                       fpu_stall
 );
 
   logic [DATA_WIDTH-1:0] operand_a, operand_b;
@@ -48,6 +52,30 @@ module execute_stage
     .zero_flag (alu_zero),
     .neg_flag  (alu_neg)
   );
+
+  // FPU signals
+  logic [DATA_WIDTH-1:0] fpu_result;
+  logic fpu_valid, fpu_busy;
+  logic fpu_start;
+
+  // Start FPU when we have a valid FPU operation
+  assign fpu_start = valid_in && decoded.is_fpu_op && !stall;
+
+  fp_alu u_fp_alu (
+    .clk(clk),
+    .rst_n(rst_n),
+    .start(fpu_start),
+    .fpu_op(decoded.fpu_op),
+    .operand_a(rs1_data),
+    .operand_b(rs2_data),
+    .operand_c(rs3_data),
+    .result(fpu_result),
+    .result_valid(fpu_valid),
+    .busy(fpu_busy)
+  );
+
+  // FPU stall: stall pipeline during multi-cycle FPU operations
+  assign fpu_stall = fpu_busy;
 
   // Branch condition
   logic branch_cond;
@@ -70,9 +98,16 @@ module execute_stage
   logic [ADDR_WIDTH-1:0] target_addr;
   assign target_addr = (decoded.opcode == OP_JALR) ? (rs1_data + decoded.imm) : (pc_in + decoded.imm);
 
-  // Result (JAL/JALR store return address)
+  // Result selection
   logic [DATA_WIDTH-1:0] result;
-  assign result = decoded.jump ? (pc_in + 4) : alu_out;
+  always_comb begin
+    if (decoded.is_fpu_op)
+      result = fpu_result;
+    else if (decoded.jump)
+      result = pc_in + 4;
+    else
+      result = alu_out;
+  end
 
   // Output registers
   always_ff @(posedge clk or negedge rst_n) begin
@@ -88,7 +123,7 @@ module execute_stage
       alu_result    <= '0;
       valid_out     <= 1'b0;
       branch_taken  <= 1'b0;
-    end else if (!stall) begin
+    end else if (!stall && !fpu_stall) begin
       alu_result    <= result;
       mem_wdata     <= rs2_data;
       decoded_out   <= decoded;

@@ -1,5 +1,5 @@
 // Register file: 32 regs x 32 bits, x0 hardwired to zero
-// 2 read ports (async), 1 write port (sync)
+// 3 read ports (async), 1 write port (sync)
 
 module vector_regfile
   import pkg_opengpu::*;
@@ -10,8 +10,10 @@ module vector_regfile
   // Read ports
   input  logic [REG_ADDR_WIDTH-1:0]  rs1_addr,
   input  logic [REG_ADDR_WIDTH-1:0]  rs2_addr,
+  input  logic [REG_ADDR_WIDTH-1:0]  rs3_addr,  // For FMA operations
   output logic [DATA_WIDTH-1:0]      rs1_data,
   output logic [DATA_WIDTH-1:0]      rs2_data,
+  output logic [DATA_WIDTH-1:0]      rs3_data,  // For FMA operations
 
   // Write port
   input  logic                       we,
@@ -33,6 +35,7 @@ module vector_regfile
   // Read (async)
   assign rs1_data = (rs1_addr == REG_ZERO) ? '0 : registers[rs1_addr];
   assign rs2_data = (rs2_addr == REG_ZERO) ? '0 : registers[rs2_addr];
+  assign rs3_data = (rs3_addr == REG_ZERO) ? '0 : registers[rs3_addr];
 
   // Write (sync)
   always_ff @(posedge clk or negedge rst_n) begin

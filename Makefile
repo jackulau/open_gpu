@@ -15,8 +15,23 @@ BUILD_DIR = build
 
 # Source files
 PKG_SRC = $(RTL_DIR)/common/pkg_opengpu.sv
+
+# FPU sources
+FPU_SRC = \
+	$(RTL_DIR)/exec/fpu/fp_classifier.sv \
+	$(RTL_DIR)/exec/fpu/fp_misc.sv \
+	$(RTL_DIR)/exec/fpu/fp_compare.sv \
+	$(RTL_DIR)/exec/fpu/fp_addsub.sv \
+	$(RTL_DIR)/exec/fpu/fp_mul.sv \
+	$(RTL_DIR)/exec/fpu/fp_convert.sv \
+	$(RTL_DIR)/exec/fpu/fp_div.sv \
+	$(RTL_DIR)/exec/fpu/fp_sqrt.sv \
+	$(RTL_DIR)/exec/fpu/fp_fma.sv \
+	$(RTL_DIR)/exec/fpu/fp_alu.sv
+
 CORE_SRC = \
 	$(RTL_DIR)/exec/int_alu.sv \
+	$(FPU_SRC) \
 	$(RTL_DIR)/core/regfile/vector_regfile.sv \
 	$(RTL_DIR)/core/pipeline/fetch_stage.sv \
 	$(RTL_DIR)/core/pipeline/decode_stage.sv \

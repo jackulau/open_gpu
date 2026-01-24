@@ -26,6 +26,12 @@ OPCODES = {
     'NOT': 0x16,
     'SLL': 0x17, 'SLLI': 0x18, 'SRL': 0x19,
     'SRLI': 0x1A, 'SRA': 0x1B, 'SRAI': 0x1C,
+    # FPU instructions (0x20-0x2F)
+    'FADD': 0x20, 'FSUB': 0x21, 'FMUL': 0x22, 'FDIV': 0x23,
+    'FMADD': 0x24, 'FMSUB': 0x25, 'FSQRT': 0x26,
+    'FABS': 0x27, 'FNEG': 0x28, 'FMIN': 0x29, 'FMAX': 0x2A,
+    'FCVTWS': 0x2B, 'FCVTSW': 0x2C,
+    'FCMPEQ': 0x2D, 'FCMPLT': 0x2E, 'FCMPLE': 0x2F,
     'SLT': 0x40, 'SLTI': 0x41, 'SLTU': 0x42,
     'SLTIU': 0x43, 'SEQ': 0x44, 'SNE': 0x45,
     'SGE': 0x46, 'SGEU': 0x47,
@@ -49,6 +55,10 @@ MEM_STORE = {'SW', 'SH', 'SB'}
 B_TYPE = {'BEQ', 'BNE', 'BLT', 'BGE', 'BLTU', 'BGEU'}
 U_TYPE = {'LUI', 'AUIPC', 'JAL'}
 CTRL_TYPE = {'RET'}
+# FPU instruction sets
+FPU_R2 = {'FADD', 'FSUB', 'FMUL', 'FDIV', 'FMIN', 'FMAX', 'FCMPEQ', 'FCMPLT', 'FCMPLE'}  # 2 operands
+FPU_R1 = {'FABS', 'FNEG', 'FSQRT', 'FCVTWS', 'FCVTSW'}  # 1 operand
+FPU_R3 = {'FMADD', 'FMSUB'}  # 3 operands (rd = rs1 * rs2 + rs3)
 
 REGISTERS = {
     'X0': 0, 'ZERO': 0,
@@ -225,6 +235,26 @@ class Assembler:
 
         if mnemonic in CTRL_TYPE:
             return opcode << 26
+
+        # FPU 2-operand (rd, rs1, rs2)
+        if mnemonic in FPU_R2:
+            return self.encode_r_type(opcode, self.parse_register(operands[0]),
+                                      self.parse_register(operands[1]),
+                                      self.parse_register(operands[2]))
+
+        # FPU 1-operand (rd, rs1)
+        if mnemonic in FPU_R1:
+            return self.encode_r_type(opcode, self.parse_register(operands[0]),
+                                      self.parse_register(operands[1]), 0)
+
+        # FPU 3-operand (rd, rs1, rs2, rs3) - rs3 encoded in func field [10:6]
+        if mnemonic in FPU_R3:
+            rd = self.parse_register(operands[0])
+            rs1 = self.parse_register(operands[1])
+            rs2 = self.parse_register(operands[2])
+            rs3 = self.parse_register(operands[3])
+            # rs3 goes in bits [10:6]
+            return (opcode << 26) | (rd << 21) | (rs1 << 16) | (rs2 << 11) | (rs3 << 6)
 
         raise ValueError(f"Unhandled instruction: {mnemonic}")
 
