@@ -49,7 +49,12 @@ module simt_execute_stage
   // FPU busy (stall signal)
   output logic                          fpu_busy,
   input  logic                          fpu_result_valid,
-  input  logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] fpu_result
+  input  logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] fpu_result,
+
+  // Branch resolution outputs (for branch predictor)
+  output logic                          branch_resolved,
+  output logic                          is_branch_out,
+  output logic                          branch_taken_actual  // Actual branch outcome
 );
 
   // Per-lane operands
@@ -267,6 +272,12 @@ module simt_execute_stage
   assign fpu_busy = valid_in && decoded.base.is_fpu_op &&
                     is_multicycle_fpu_op(decoded.base.fpu_op) &&
                     !fpu_result_valid;
+
+  // Branch resolution outputs for branch predictor
+  // These are combinational signals indicating branch outcome in current cycle
+  assign branch_resolved = valid_in && (decoded.base.branch || decoded.base.jump) && !stall;
+  assign is_branch_out = decoded.base.branch;
+  assign branch_taken_actual = branch_taken;
 
   // Pipeline registers
   always_ff @(posedge clk or negedge rst_n) begin

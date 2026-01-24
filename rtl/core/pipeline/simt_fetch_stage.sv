@@ -12,6 +12,11 @@ module simt_fetch_stage
   input  logic                          stall,
   input  logic                          flush,
 
+  // Selective flush for branch misprediction
+  input  logic                          selective_flush,
+  input  logic [WARP_ID_WIDTH-1:0]      flush_warp_id,
+  input  logic [DATA_WIDTH-1:0]         correct_pc,
+
   // From warp scheduler
   input  logic                          warp_valid,
   input  logic [WARP_ID_WIDTH-1:0]      warp_id,
@@ -50,11 +55,19 @@ module simt_fetch_stage
   logic [DATA_WIDTH-1:0] pc_reg;
   logic [WARP_SIZE-1:0] mask_reg;
 
+  // Selective flush matching
+  logic warp_match_flush;
+  assign warp_match_flush = selective_flush && (warp_id_reg == flush_warp_id);
+
+  // Combined flush signal
+  logic effective_flush;
+  assign effective_flush = flush || warp_match_flush;
+
   // State machine
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       state <= FETCH_IDLE;
-    end else if (flush) begin
+    end else if (effective_flush) begin
       state <= FETCH_IDLE;
     end else begin
       state <= next_state;
@@ -114,7 +127,7 @@ module simt_fetch_stage
       out_warp_id <= '0;
       out_mask <= '0;
       valid <= 1'b0;
-    end else if (flush) begin
+    end else if (effective_flush) begin
       instr <= INSTR_NOP;
       valid <= 1'b0;
     end else if (state == FETCH_DONE && !stall) begin
@@ -127,5 +140,9 @@ module simt_fetch_stage
       valid <= 1'b0;
     end
   end
+
+  // Output signals for branch predictor
+  // These indicate the warp/PC currently being fetched
+  // (not registered outputs, but internal state)
 
 endmodule

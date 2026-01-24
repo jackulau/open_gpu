@@ -205,6 +205,11 @@ module simt_core_top
   logic pipeline_stall;
   logic pipeline_flush;
 
+  // Selective flush for branch misprediction
+  logic selective_flush;
+  logic [WARP_ID_WIDTH-1:0] flush_warp_id;
+  logic [DATA_WIDTH-1:0] flush_correct_pc;
+
   // Fetch stage outputs
   logic [INSTR_WIDTH-1:0] fetch_instr;
   logic [ADDR_WIDTH-1:0] fetch_pc;
@@ -219,6 +224,9 @@ module simt_core_top
     .enable(pipeline_enable),
     .stall(pipeline_stall),
     .flush(pipeline_flush),
+    .selective_flush(selective_flush),
+    .flush_warp_id(flush_warp_id),
+    .correct_pc(flush_correct_pc),
     .warp_valid(sched_warp_valid),
     .warp_id(sched_warp_id),
     .warp_pc(sched_warp_pc),
@@ -240,6 +248,11 @@ module simt_core_top
   logic [ADDR_WIDTH-1:0] decode_pc;
   logic decode_valid;
 
+  // Hazard detection signals from decode
+  logic decode_uses_rs1, decode_uses_rs2, decode_uses_rs3;
+  logic decode_is_branch;
+  logic [DATA_WIDTH-1:0] decode_branch_offset;
+
   simt_decode_stage u_decode (
     .clk(clk),
     .rst_n(rst_n),
@@ -252,7 +265,12 @@ module simt_core_top
     .valid_in(fetch_valid),
     .decoded(decode_decoded),
     .pc_out(decode_pc),
-    .valid_out(decode_valid)
+    .valid_out(decode_valid),
+    .uses_rs1(decode_uses_rs1),
+    .uses_rs2(decode_uses_rs2),
+    .uses_rs3(decode_uses_rs3),
+    .is_branch_out(decode_is_branch),
+    .branch_offset_out(decode_branch_offset)
   );
 
   // Connect register file read to decode output
@@ -262,6 +280,10 @@ module simt_core_top
   assign rf_rs1_addr = decode_decoded.base.rs1;
   assign rf_rs2_addr = decode_decoded.base.rs2;
   assign rf_rs3_addr = decode_decoded.base.rs3;
+
+  // Forwarded data (from forwarding unit)
+  logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] fwd_rs1_data, fwd_rs2_data, fwd_rs3_data;
+  logic [1:0] fwd_rs1_src, fwd_rs2_src, fwd_rs3_src;
 
   // Execute stage outputs
   simt_decoded_instr_t exec_decoded;
@@ -292,6 +314,11 @@ module simt_core_top
   logic fpu_result_valid;
   logic [WARP_SIZE-1:0][DATA_WIDTH-1:0] fpu_result;
 
+  // Branch resolution signals from execute
+  logic exec_branch_resolved;
+  logic exec_is_branch;
+  logic exec_branch_taken_actual;
+
   simt_execute_stage u_execute (
     .clk(clk),
     .rst_n(rst_n),
@@ -300,9 +327,9 @@ module simt_core_top
     .decoded(decode_decoded),
     .pc_in(decode_pc),
     .valid_in(decode_valid),
-    .rs1_data(rf_rs1_data),
-    .rs2_data(rf_rs2_data),
-    .rs3_data(rf_rs3_data),
+    .rs1_data(fwd_rs1_data),   // Use forwarded data
+    .rs2_data(fwd_rs2_data),   // Use forwarded data
+    .rs3_data(fwd_rs3_data),   // Use forwarded data
     .stack_push(exec_stack_push),
     .stack_pop(exec_stack_pop),
     .stack_push_entry(exec_stack_push_entry),
@@ -322,7 +349,10 @@ module simt_core_top
     .new_pc(exec_new_pc),
     .fpu_busy(exec_fpu_busy),
     .fpu_result_valid(fpu_result_valid),
-    .fpu_result(fpu_result)
+    .fpu_result(fpu_result),
+    .branch_resolved(exec_branch_resolved),
+    .is_branch_out(exec_is_branch),
+    .branch_taken_actual(exec_branch_taken_actual)
   );
 
   // Route stack operations to correct warp
@@ -419,6 +449,151 @@ module simt_core_top
   assign fpu_result = simd_fpu_result;
 
   // ============================================================================
+  // Hazard Detection and Data Forwarding
+  // ============================================================================
+
+  // Hazard scoreboard signals
+  logic scoreboard_hazard_detected;
+  logic scoreboard_rs1_hazard, scoreboard_rs2_hazard, scoreboard_rs3_hazard;
+  logic [1:0] scoreboard_rs1_fwd_stage, scoreboard_rs2_fwd_stage, scoreboard_rs3_fwd_stage;
+  logic scoreboard_rs1_fwd_valid, scoreboard_rs2_fwd_valid, scoreboard_rs3_fwd_valid;
+  logic load_use_hazard;
+
+  hazard_scoreboard #(
+    .NUM_WARPS(NUM_WARPS)
+  ) u_scoreboard (
+    .clk(clk),
+    .rst_n(rst_n),
+    // Decode stage inputs
+    .decode_valid(decode_valid),
+    .decode_warp_id(decode_decoded.warp_id),
+    .decode_rs1(decode_decoded.base.rs1),
+    .decode_rs2(decode_decoded.base.rs2),
+    .decode_rs3(decode_decoded.base.rs3),
+    .decode_uses_rs1(decode_uses_rs1),
+    .decode_uses_rs2(decode_uses_rs2),
+    .decode_uses_rs3(decode_uses_rs3),
+    // Execute issue (set pending)
+    .exec_issue(decode_valid && !pipeline_stall),
+    .exec_warp_id(decode_decoded.warp_id),
+    .exec_rd(decode_decoded.base.rd),
+    .exec_reg_write(decode_decoded.base.reg_write),
+    .exec_is_load(decode_decoded.base.mem_read),
+    // Pipeline advancement
+    .ex_mem_advance(exec_valid && !pipeline_stall),
+    .ex_mem_warp_id(exec_decoded.warp_id),
+    .ex_mem_rd(exec_decoded.base.rd),
+    .ex_mem_reg_write(exec_decoded.base.reg_write),
+    .mem_wb_advance(mem_valid && !pipeline_stall),
+    .mem_wb_warp_id(mem_decoded.warp_id),
+    .mem_wb_rd(mem_decoded.base.rd),
+    .mem_wb_reg_write(mem_decoded.base.reg_write),
+    // Writeback completion
+    .wb_complete(wb_instr_complete),
+    .wb_warp_id(wb_complete_warp_id),
+    .wb_rd(rf_rd_addr),
+    .wb_reg_write(rf_we),
+    // Flush
+    .flush(selective_flush),
+    .flush_warp_id(flush_warp_id),
+    // Outputs
+    .hazard_detected(scoreboard_hazard_detected),
+    .rs1_hazard(scoreboard_rs1_hazard),
+    .rs2_hazard(scoreboard_rs2_hazard),
+    .rs3_hazard(scoreboard_rs3_hazard),
+    .rs1_fwd_stage(scoreboard_rs1_fwd_stage),
+    .rs2_fwd_stage(scoreboard_rs2_fwd_stage),
+    .rs3_fwd_stage(scoreboard_rs3_fwd_stage),
+    .rs1_fwd_valid(scoreboard_rs1_fwd_valid),
+    .rs2_fwd_valid(scoreboard_rs2_fwd_valid),
+    .rs3_fwd_valid(scoreboard_rs3_fwd_valid),
+    .load_use_hazard(load_use_hazard)
+  );
+
+  // Forwarding unit
+  forwarding_unit #(
+    .NUM_WARPS(NUM_WARPS)
+  ) u_forwarding (
+    // Current instruction
+    .decode_warp_id(decode_decoded.warp_id),
+    .decode_rs1(decode_decoded.base.rs1),
+    .decode_rs2(decode_decoded.base.rs2),
+    .decode_rs3(decode_decoded.base.rs3),
+    // Register file data
+    .rf_rs1_data(rf_rs1_data),
+    .rf_rs2_data(rf_rs2_data),
+    .rf_rs3_data(rf_rs3_data),
+    // Execute stage
+    .ex_valid(exec_valid),
+    .ex_warp_id(exec_decoded.warp_id),
+    .ex_rd(exec_decoded.base.rd),
+    .ex_reg_write(exec_decoded.base.reg_write),
+    .ex_result(exec_alu_result),
+    // Memory stage
+    .mem_valid(mem_valid),
+    .mem_warp_id(mem_decoded.warp_id),
+    .mem_rd(mem_decoded.base.rd),
+    .mem_reg_write(mem_decoded.base.reg_write),
+    .mem_result(mem_result),
+    // Writeback stage
+    .wb_valid(rf_we),
+    .wb_warp_id(rf_rd_warp),
+    .wb_rd(rf_rd_addr),
+    .wb_reg_write(rf_we),
+    .wb_result(rf_rd_data),
+    // Forwarded outputs
+    .fwd_rs1_data(fwd_rs1_data),
+    .fwd_rs2_data(fwd_rs2_data),
+    .fwd_rs3_data(fwd_rs3_data),
+    .fwd_rs1_src(fwd_rs1_src),
+    .fwd_rs2_src(fwd_rs2_src),
+    .fwd_rs3_src(fwd_rs3_src)
+  );
+
+  // Branch predictor
+  logic bp_predict_taken;
+  logic [ADDR_WIDTH-1:0] bp_predict_target;
+  logic bp_misprediction;
+  logic [WARP_ID_WIDTH-1:0] bp_mispredict_warp_id;
+  logic [ADDR_WIDTH-1:0] bp_correct_pc;
+
+  branch_predictor #(
+    .NUM_WARPS(NUM_WARPS)
+  ) u_branch_pred (
+    .clk(clk),
+    .rst_n(rst_n),
+    // Fetch stage
+    .fetch_valid(fetch_valid),
+    .fetch_warp_id(fetch_warp_id),
+    .fetch_pc(fetch_pc),
+    // Decode stage
+    .decode_valid(decode_valid),
+    .decode_warp_id(decode_decoded.warp_id),
+    .decode_pc(decode_pc),
+    .decode_is_branch(decode_is_branch),
+    .decode_branch_offset(decode_branch_offset),
+    // Execute stage (resolution)
+    .exec_valid(exec_valid),
+    .exec_warp_id(exec_decoded.warp_id),
+    .exec_pc(exec_pc),
+    .exec_is_branch(exec_is_branch),
+    .exec_branch_taken(exec_branch_taken_actual),
+    .exec_branch_target(exec_branch_target),
+    // Prediction outputs
+    .predict_taken(bp_predict_taken),
+    .predict_target(bp_predict_target),
+    // Misprediction outputs
+    .misprediction(bp_misprediction),
+    .mispredict_warp_id(bp_mispredict_warp_id),
+    .correct_pc(bp_correct_pc)
+  );
+
+  // Connect misprediction signals
+  assign selective_flush = bp_misprediction;
+  assign flush_warp_id = bp_mispredict_warp_id;
+  assign flush_correct_pc = bp_correct_pc;
+
+  // ============================================================================
   // Control Logic
   // ============================================================================
 
@@ -486,8 +661,10 @@ module simt_core_top
 
   // Pipeline control
   assign pipeline_enable = (core_state == CORE_RUN);
-  assign pipeline_stall = mem_busy || exec_fpu_busy || simd_fpu_busy;
-  assign pipeline_flush = 1'b0;  // Could be used for exceptions
+  // Stall for memory, FPU, or load-use hazard
+  assign pipeline_stall = mem_busy || exec_fpu_busy || simd_fpu_busy || load_use_hazard;
+  // Flush on branch misprediction
+  assign pipeline_flush = bp_misprediction;
 
   // Warp stall (pipeline hazards)
   always_comb begin

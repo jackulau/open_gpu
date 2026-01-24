@@ -66,7 +66,10 @@ PIPELINE_SRCS = \
 	$(PIPELINE_DIR)/simt_decode_stage.sv \
 	$(PIPELINE_DIR)/simt_execute_stage.sv \
 	$(PIPELINE_DIR)/simt_memory_stage.sv \
-	$(PIPELINE_DIR)/simt_writeback_stage.sv
+	$(PIPELINE_DIR)/simt_writeback_stage.sv \
+	$(PIPELINE_DIR)/hazard_scoreboard.sv \
+	$(PIPELINE_DIR)/forwarding_unit.sv \
+	$(PIPELINE_DIR)/branch_predictor.sv
 
 # Register file sources
 REGFILE_SRCS = \
@@ -128,6 +131,26 @@ tb_shared_memory: $(OUT_DIR)
 		$(TB_DIR)/tb_shared_memory.sv
 	$(VVP) $(OUT_DIR)/$@.vvp
 
+# Hazard Scoreboard testbench
+tb_hazard_scoreboard: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(PIPELINE_DIR)/hazard_scoreboard.sv \
+		$(TB_DIR)/tb_hazard_scoreboard.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
+# Forwarding Unit testbench
+tb_forwarding_unit: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(PIPELINE_DIR)/forwarding_unit.sv \
+		$(TB_DIR)/tb_forwarding_unit.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
+# Run all hazard handling tests
+test_hazards: tb_hazard_scoreboard tb_forwarding_unit
+	@echo "All hazard handling tests completed"
+
 # Run all memory hierarchy tests
 test_memory: tb_l1_data_cache tb_shared_memory
 	@echo "All memory hierarchy tests completed"
@@ -165,6 +188,11 @@ help:
 	@echo "  tb_simt_core       - Run full SIMT core testbench"
 	@echo "  test_simt          - Run all SIMT tests"
 	@echo ""
+	@echo "Hazard Handling Targets:"
+	@echo "  tb_hazard_scoreboard - Run hazard scoreboard testbench"
+	@echo "  tb_forwarding_unit   - Run forwarding unit testbench"
+	@echo "  test_hazards         - Run all hazard handling tests"
+	@echo ""
 	@echo "Memory Hierarchy Targets:"
 	@echo "  tb_l1_data_cache   - Run L1 data cache testbench"
 	@echo "  tb_shared_memory   - Run shared memory testbench"
@@ -176,4 +204,5 @@ help:
 	@echo "  help               - Show this message"
 
 .PHONY: tb_simt_stack tb_warp_scheduler tb_simt_core tb_core test_simt \
-	tb_l1_data_cache tb_shared_memory test_memory clean help
+	tb_l1_data_cache tb_shared_memory test_memory \
+	tb_hazard_scoreboard tb_forwarding_unit test_hazards clean help

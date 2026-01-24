@@ -21,7 +21,14 @@ module simt_decode_stage
   // To execute
   output simt_decoded_instr_t           decoded,
   output logic [ADDR_WIDTH-1:0]         pc_out,
-  output logic                          valid_out
+  output logic                          valid_out,
+
+  // Hazard detection outputs (combinational from current instruction)
+  output logic                          uses_rs1,
+  output logic                          uses_rs2,
+  output logic                          uses_rs3,
+  output logic                          is_branch_out,
+  output logic [DATA_WIDTH-1:0]         branch_offset_out
 );
 
   // Extract instruction fields
@@ -219,6 +226,99 @@ module simt_decode_stage
       end
     endcase
   end
+
+  // ========================================================================
+  // Register usage detection for hazard checking
+  // ========================================================================
+
+  logic uses_rs1_comb, uses_rs2_comb, uses_rs3_comb;
+
+  always_comb begin
+    // Default: most instructions use rs1
+    uses_rs1_comb = 1'b1;
+    uses_rs2_comb = 1'b0;
+    uses_rs3_comb = 1'b0;
+
+    case (opcode)
+      // R-type instructions use rs1 and rs2
+      OP_ADD, OP_SUB, OP_MUL, OP_MULH, OP_DIV, OP_DIVU, OP_REM, OP_REMU,
+      OP_AND, OP_OR, OP_XOR, OP_SLL, OP_SRL, OP_SRA,
+      OP_SLT, OP_SLTU, OP_SEQ, OP_SNE, OP_SGE, OP_SGEU,
+      OP_FADD, OP_FSUB, OP_FMUL, OP_FDIV, OP_FMIN, OP_FMAX,
+      OP_FCMPEQ, OP_FCMPLT, OP_FCMPLE: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b1;
+      end
+
+      // FMA instructions use rs1, rs2, and rs3
+      OP_FMADD, OP_FMSUB: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b1;
+        uses_rs3_comb = 1'b1;
+      end
+
+      // Branch instructions use rs1 and rs2
+      OP_BEQ, OP_BNE, OP_BLT, OP_BGE, OP_BLTU, OP_BGEU: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b1;
+      end
+
+      // Store instructions use rs1 (base) and rs2 (data)
+      OP_SW, OP_SH, OP_SB: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b1;
+      end
+
+      // I-type instructions only use rs1
+      OP_ADDI, OP_ANDI, OP_ORI, OP_XORI, OP_SLLI, OP_SRLI, OP_SRAI,
+      OP_SLTI, OP_SLTIU, OP_LW, OP_LH, OP_LHU, OP_LB, OP_LBU, OP_JALR: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b0;
+      end
+
+      // Unary operations (only rs1)
+      OP_NOT, OP_FSQRT, OP_FABS, OP_FNEG, OP_FCVTWS, OP_FCVTSW,
+      OP_POPC, OP_CLZ: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b0;
+      end
+
+      // Vote and shuffle use rs1 (and rs2 for shuffle index)
+      OP_VOTEALL, OP_VOTEANY, OP_VOTEBAL: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b0;
+      end
+
+      OP_SHFLIDX, OP_SHFLUP, OP_SHFLDN, OP_SHFLXOR: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b1;
+      end
+
+      // RET uses rs1 (return address)
+      OP_RET: begin
+        uses_rs1_comb = 1'b1;
+        uses_rs2_comb = 1'b0;
+      end
+
+      // JAL, LUI, AUIPC don't use source registers
+      OP_JAL, OP_LUI, OP_AUIPC: begin
+        uses_rs1_comb = 1'b0;
+        uses_rs2_comb = 1'b0;
+      end
+
+      default: begin
+        uses_rs1_comb = 1'b0;
+        uses_rs2_comb = 1'b0;
+      end
+    endcase
+  end
+
+  // Output combinational hazard signals (before pipeline register)
+  assign uses_rs1 = valid_in && uses_rs1_comb;
+  assign uses_rs2 = valid_in && uses_rs2_comb;
+  assign uses_rs3 = valid_in && uses_rs3_comb;
+  assign is_branch_out = valid_in && base_decoded.branch;
+  assign branch_offset_out = base_decoded.imm;
 
   // SIMT extension decode
   simt_decoded_instr_t decoded_comb;
