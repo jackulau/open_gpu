@@ -50,7 +50,15 @@ SIMT_SRCS = \
 
 # Memory sources
 MEMORY_SRCS = \
-	$(MEMORY_DIR)/mem_coalescing_unit.sv
+	$(MEMORY_DIR)/mem_coalescing_unit.sv \
+	$(MEMORY_DIR)/shared_memory.sv
+
+# Cache sources
+CACHE_DIR = $(MEMORY_DIR)/cache
+CACHE_SRCS = \
+	$(CACHE_DIR)/l1_data_cache.sv \
+	$(CACHE_DIR)/l1_instr_cache.sv \
+	$(CACHE_DIR)/l2_cache.sv
 
 # Pipeline sources
 PIPELINE_SRCS = \
@@ -70,7 +78,7 @@ CORE_SRCS = \
 
 # All SIMT-related sources
 ALL_SIMT_SRCS = $(COMMON_SRCS) $(EXEC_SRCS) $(SIMT_SRCS) $(MEMORY_SRCS) \
-	$(REGFILE_SRCS) $(PIPELINE_SRCS) $(CORE_SRCS)
+	$(CACHE_SRCS) $(REGFILE_SRCS) $(PIPELINE_SRCS) $(CORE_SRCS)
 
 # Compilation flags
 IVFLAGS = -g2012 -Wall -DSIMULATION
@@ -104,6 +112,26 @@ tb_simt_core: $(OUT_DIR)
 		$(TB_DIR)/tb_simt_core.sv
 	$(VVP) $(OUT_DIR)/$@.vvp
 
+# L1 Data Cache testbench
+tb_l1_data_cache: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(CACHE_DIR)/l1_data_cache.sv \
+		$(TB_DIR)/tb_l1_data_cache.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
+# Shared Memory testbench
+tb_shared_memory: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(MEMORY_DIR)/shared_memory.sv \
+		$(TB_DIR)/tb_shared_memory.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
+# Run all memory hierarchy tests
+test_memory: tb_l1_data_cache tb_shared_memory
+	@echo "All memory hierarchy tests completed"
+
 # Original core testbench (if exists)
 tb_core: $(OUT_DIR)
 	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
@@ -129,15 +157,23 @@ clean:
 
 # Help
 help:
-	@echo "OpenGPU SIMT Simulation Makefile"
+	@echo "OpenGPU Simulation Makefile"
 	@echo ""
-	@echo "Targets:"
+	@echo "SIMT Targets:"
 	@echo "  tb_simt_stack      - Run SIMT stack testbench"
 	@echo "  tb_warp_scheduler  - Run warp scheduler testbench"
 	@echo "  tb_simt_core       - Run full SIMT core testbench"
 	@echo "  test_simt          - Run all SIMT tests"
+	@echo ""
+	@echo "Memory Hierarchy Targets:"
+	@echo "  tb_l1_data_cache   - Run L1 data cache testbench"
+	@echo "  tb_shared_memory   - Run shared memory testbench"
+	@echo "  test_memory        - Run all memory hierarchy tests"
+	@echo ""
+	@echo "Utility:"
 	@echo "  waves_<name>       - View waveforms (e.g., waves_tb_simt_stack)"
 	@echo "  clean              - Remove generated files"
 	@echo "  help               - Show this message"
 
-.PHONY: tb_simt_stack tb_warp_scheduler tb_simt_core tb_core test_simt clean help
+.PHONY: tb_simt_stack tb_warp_scheduler tb_simt_core tb_core test_simt \
+	tb_l1_data_cache tb_shared_memory test_memory clean help

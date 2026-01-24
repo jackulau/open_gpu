@@ -486,4 +486,141 @@ package pkg_opengpu;
     return idx;
   endfunction
 
+  // ==========================================================================
+  // Cache Hierarchy Types and Parameters
+  // ==========================================================================
+
+  // Cache configuration parameters
+  parameter int L1I_SIZE_KB      = 16;    // L1 instruction cache size
+  parameter int L1D_SIZE_KB      = 32;    // L1 data cache size
+  parameter int L2_SIZE_KB       = 512;   // L2 shared cache size
+  parameter int SMEM_SIZE_KB     = 48;    // Shared memory per SM
+
+  // Cache line and associativity
+  parameter int CACHE_LINE_BYTES = 64;    // 64 bytes per cache line
+  parameter int CACHE_LINE_BITS  = CACHE_LINE_BYTES * 8;  // 512 bits
+  parameter int L1_WAYS          = 4;     // 4-way set associative
+  parameter int L2_WAYS          = 8;     // 8-way set associative
+
+  // Derived cache parameters
+  parameter int L1I_SETS = (L1I_SIZE_KB * 1024) / (CACHE_LINE_BYTES * L1_WAYS);
+  parameter int L1D_SETS = (L1D_SIZE_KB * 1024) / (CACHE_LINE_BYTES * L1_WAYS);
+  parameter int L2_SETS  = (L2_SIZE_KB * 1024) / (CACHE_LINE_BYTES * L2_WAYS);
+
+  // Shared memory bank configuration
+  parameter int SMEM_BANKS       = 32;    // 32 banks for conflict-free access
+  parameter int SMEM_BANK_WIDTH  = 32;    // 32-bit banks
+
+  // Cache replacement policy
+  typedef enum logic [1:0] {
+    REPLACE_LRU    = 2'd0,   // Least Recently Used
+    REPLACE_RANDOM = 2'd1,   // Random replacement
+    REPLACE_FIFO   = 2'd2,   // First In First Out
+    REPLACE_PLRU   = 2'd3    // Pseudo-LRU (tree-based)
+  } cache_replace_t;
+
+  // Cache write policy
+  typedef enum logic [1:0] {
+    WRITE_BACK       = 2'd0,  // Write-back with write-allocate
+    WRITE_THROUGH    = 2'd1,  // Write-through with no-allocate
+    WRITE_AROUND     = 2'd2   // Write-around (bypass cache on write)
+  } cache_write_policy_t;
+
+  // Cache line state (MESI protocol)
+  typedef enum logic [1:0] {
+    CACHE_INVALID    = 2'd0,  // Invalid
+    CACHE_SHARED     = 2'd1,  // Shared (clean, may exist in other caches)
+    CACHE_EXCLUSIVE  = 2'd2,  // Exclusive (clean, only copy)
+    CACHE_MODIFIED   = 2'd3   // Modified (dirty, must write back)
+  } cache_state_t;
+
+  // Cache request type
+  typedef enum logic [2:0] {
+    CACHE_READ       = 3'd0,  // Read request
+    CACHE_WRITE      = 3'd1,  // Write request
+    CACHE_WRITEBACK  = 3'd2,  // Write-back dirty line
+    CACHE_INVALIDATE = 3'd3,  // Invalidate line
+    CACHE_FLUSH      = 3'd4,  // Flush (write-back + invalidate)
+    CACHE_PREFETCH   = 3'd5   // Prefetch request
+  } cache_req_type_t;
+
+  // L1 cache line structure
+  typedef struct packed {
+    logic                           valid;
+    logic                           dirty;
+    cache_state_t                   state;
+    logic [ADDR_WIDTH-1:6]          tag;      // Tag bits (excludes 6-bit offset)
+    logic [CACHE_LINE_BITS-1:0]     data;     // 512 bits = 64 bytes
+  } cache_line_t;
+
+  // Cache request structure
+  typedef struct packed {
+    logic                     valid;
+    cache_req_type_t          req_type;
+    logic [ADDR_WIDTH-1:0]    addr;
+    logic [DATA_WIDTH-1:0]    wdata;
+    logic [3:0]               byte_en;   // Byte enables for partial writes
+    mem_size_t                size;
+  } cache_request_t;
+
+  // Cache response structure
+  typedef struct packed {
+    logic                     valid;
+    logic                     hit;
+    logic [DATA_WIDTH-1:0]    rdata;
+    logic                     ready;     // Request completed
+  } cache_response_t;
+
+  // L2 cache request (from L1)
+  typedef struct packed {
+    logic                     valid;
+    cache_req_type_t          req_type;
+    logic [ADDR_WIDTH-1:0]    addr;
+    logic [CACHE_LINE_BITS-1:0] wdata;   // Full cache line for write-back
+    logic [2:0]               src_id;    // Source L1 cache ID
+  } l2_request_t;
+
+  // L2 cache response (to L1)
+  typedef struct packed {
+    logic                     valid;
+    logic                     hit;
+    logic [CACHE_LINE_BITS-1:0] rdata;   // Full cache line
+    logic [2:0]               dst_id;    // Destination L1 cache ID
+  } l2_response_t;
+
+  // Shared memory bank request
+  typedef struct packed {
+    logic                     valid;
+    logic                     we;        // Write enable
+    logic [15:0]              addr;      // 16-bit address within shared memory
+    logic [DATA_WIDTH-1:0]    wdata;
+  } smem_bank_request_t;
+
+  // Shared memory access result
+  typedef struct packed {
+    logic                     valid;
+    logic [DATA_WIDTH-1:0]    rdata;
+    logic                     bank_conflict;  // Bank conflict detected
+  } smem_response_t;
+
+  // Cache statistics (for performance monitoring)
+  typedef struct packed {
+    logic [31:0] hits;
+    logic [31:0] misses;
+    logic [31:0] writebacks;
+    logic [31:0] invalidations;
+  } cache_stats_t;
+
+  // Address field extraction for cache indexing
+  // Address format: [tag | index | offset]
+  // For 64-byte lines: offset = addr[5:0], index depends on cache size
+
+  function automatic logic [5:0] get_cache_offset(input logic [ADDR_WIDTH-1:0] addr);
+    return addr[5:0];
+  endfunction
+
+  function automatic logic [ADDR_WIDTH-7:0] get_cache_tag(input logic [ADDR_WIDTH-1:0] addr);
+    return addr[ADDR_WIDTH-1:6];
+  endfunction
+
 endpackage
