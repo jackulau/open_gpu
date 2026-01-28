@@ -206,18 +206,22 @@ module tb_simt_core;
 
   // Start core and wait for completion
   task run_core(input int max_cycles = 1000);
+    int i;
+    logic completed;
     start = 1;
     @(posedge clk);
     start = 0;
 
-    for (int i = 0; i < max_cycles; i++) begin
+    completed = 0;
+    for (i = 0; i < max_cycles && !completed; i++) begin
       @(posedge clk);
       if (done) begin
         $display("Core completed in %0d cycles", i);
-        return;
+        completed = 1;
       end
     end
-    $display("ERROR: Core timeout after %0d cycles", max_cycles);
+    if (!completed)
+      $display("ERROR: Core timeout after %0d cycles", max_cycles);
   endtask
 
   // Test cases
@@ -365,19 +369,22 @@ module tb_simt_core;
     check("Lane ID test completed", done == 1);
 
     // Verify stored values
-    logic lane_id_correct;
-    lane_id_correct = 1'b1;
-    for (int i = 0; i < WARP_SIZE; i++) begin
+    begin
+      logic lane_id_correct;
       logic [31:0] stored_val;
-      int addr = 32'h1000 + i*4;
-      stored_val = {dmem_storage[addr+3], dmem_storage[addr+2],
-                    dmem_storage[addr+1], dmem_storage[addr]};
-      if (stored_val != i) begin
-        lane_id_correct = 1'b0;
-        $display("  Lane %0d: expected %0d, got %0d", i, i, stored_val);
+      int addr;
+      lane_id_correct = 1'b1;
+      for (int i = 0; i < WARP_SIZE; i++) begin
+        addr = 32'h1000 + i*4;
+        stored_val = {dmem_storage[addr+3], dmem_storage[addr+2],
+                      dmem_storage[addr+1], dmem_storage[addr]};
+        if (stored_val != i) begin
+          lane_id_correct = 1'b0;
+          $display("  Lane %0d: expected %0d, got %0d", i, i, stored_val);
+        end
       end
+      check("Lane IDs stored correctly", lane_id_correct);
     end
-    check("Lane IDs stored correctly", lane_id_correct);
 
     // Print final results
     $display("\n========================================");

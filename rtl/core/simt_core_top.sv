@@ -130,6 +130,14 @@ module simt_core_top
   logic [NUM_WARPS-1:0] stack_empty;
   logic [NUM_WARPS-1:0] stack_at_reconvergence;
 
+  // Extract PC values from contexts for Icarus Verilog compatibility
+  logic [DATA_WIDTH-1:0] warp_pc [NUM_WARPS];
+  always_comb begin
+    for (int i = 0; i < NUM_WARPS; i++) begin
+      warp_pc[i] = warp_contexts[i].pc;
+    end
+  end
+
   genvar w;
   generate
     for (w = 0; w < NUM_WARPS; w++) begin : gen_simt_stacks
@@ -143,7 +151,7 @@ module simt_core_top
         .stack_empty(stack_empty[w]),
         .stack_full(),
         .stack_depth(),
-        .current_pc(warp_contexts[w].pc),
+        .current_pc(warp_pc[w]),
         .at_reconvergence(stack_at_reconvergence[w])
       );
     end

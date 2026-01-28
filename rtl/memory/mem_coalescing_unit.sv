@@ -70,11 +70,13 @@ module mem_coalescing_unit
   // Find first pending lane for base address
   logic [4:0] first_lane;
   always_comb begin
+    logic found;
     first_lane = '0;
+    found = 1'b0;
     for (int i = 0; i < WARP_SIZE; i++) begin
-      if (pending_lanes[i]) begin
+      if (pending_lanes[i] && !found) begin
         first_lane = i[4:0];
-        break;
+        found = 1'b1;
       end
     end
   end

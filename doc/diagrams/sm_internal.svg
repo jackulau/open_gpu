@@ -141,24 +141,24 @@
   <line x1="260" y1="425" x2="260" y2="450" stroke="#4a5568" stroke-width="1.5"/>
   <line x1="410" y1="425" x2="410" y2="450" stroke="#4a5568" stroke-width="1.5"/>
 
-  <!-- Legend -->
-  <rect x="30" y="500" width="640" height="40" rx="5" fill="#f7fafc" stroke="#e2e8f0"/>
-  <text x="50" y="520" class="label">Legend:</text>
-  <rect x="100" y="510" width="20" height="15" class="core-box"/>
-  <text x="125" y="522" class="small">Compute Core</text>
-  <rect x="200" y="510" width="20" height="15" class="cache-box"/>
-  <text x="225" y="522" class="small">Cache</text>
-  <rect x="280" y="510" width="20" height="15" class="lds-box"/>
-  <text x="305" y="522" class="small">Shared Memory</text>
-  <rect x="390" y="510" width="20" height="15" class="sched-box"/>
-  <text x="415" y="522" class="small">Scheduler</text>
-  <rect x="480" y="510" width="20" height="15" class="ctrl-box"/>
-  <text x="505" y="522" class="small">Controller</text>
+  <!-- SM Specs Box -->
+  <rect x="560" y="495" width="130" height="50" rx="5" fill="#edf2f7" stroke="#4a5568" stroke-width="2"/>
+  <text x="625" y="512" text-anchor="middle" class="title">SM Specs</text>
+  <text x="625" y="526" text-anchor="middle" class="small">4 Cores | 16 Warps</text>
+  <text x="625" y="538" text-anchor="middle" class="small">512 Threads Max</text>
 
-  <!-- Specs Box -->
-  <rect x="540" y="495" width="120" height="45" rx="3" fill="#edf2f7" stroke="#a0aec0"/>
-  <text x="600" y="510" text-anchor="middle" class="label" style="font-weight:bold;">SM Specs</text>
-  <text x="600" y="522" text-anchor="middle" class="small">4 Cores | 16 Warps</text>
-  <text x="600" y="534" text-anchor="middle" class="small">512 Threads Max</text>
+  <!-- Legend -->
+  <rect x="30" y="495" width="510" height="50" rx="5" fill="#f7fafc" stroke="#e2e8f0"/>
+  <text x="50" y="515" class="label">Legend:</text>
+  <rect x="105" y="507" width="20" height="15" class="core-box"/>
+  <text x="130" y="518" class="small">Compute Core</text>
+  <rect x="210" y="507" width="20" height="15" class="cache-box"/>
+  <text x="235" y="518" class="small">Cache</text>
+  <rect x="285" y="507" width="20" height="15" class="lds-box"/>
+  <text x="310" y="518" class="small">Shared Memory</text>
+  <rect x="395" y="507" width="20" height="15" class="sched-box"/>
+  <text x="420" y="518" class="small">Scheduler</text>
+  <rect x="480" y="507" width="20" height="15" class="ctrl-box"/>
+  <text x="505" y="518" class="small">Controller</text>
 
 </svg>

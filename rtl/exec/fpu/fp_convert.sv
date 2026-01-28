@@ -76,16 +76,20 @@ module fp_convert
     if (operand_a == 32'd0) begin
       i2f_result = 32'd0;
     end else begin
+      logic found;
+      logic round_bit, sticky_bit;
+
       // Get sign and absolute value
       i2f_sign = operand_a[31];
       abs_val = i2f_sign ? -operand_a : operand_a;
 
       // Count leading zeros to normalize
       leading_zero_count = 5'd0;
+      found = 1'b0;
       for (int i = 31; i >= 0; i--) begin
-        if (abs_val[i]) begin
+        if (abs_val[i] && !found) begin
           leading_zero_count = 5'd31 - i[4:0];
-          break;
+          found = 1'b1;
         end
       end
 
@@ -97,7 +101,6 @@ module fp_convert
 
       // Mantissa: bits [30:8] of normalized value (drop implicit 1)
       // Round to nearest even
-      logic round_bit, sticky_bit;
       round_bit = normalized_mant[8];
       sticky_bit = |normalized_mant[7:0];
 

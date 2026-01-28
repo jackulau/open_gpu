@@ -147,8 +147,16 @@ tb_forwarding_unit: $(OUT_DIR)
 		$(TB_DIR)/tb_forwarding_unit.sv
 	$(VVP) $(OUT_DIR)/$@.vvp
 
+# Branch Predictor testbench
+tb_branch_predictor: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(PIPELINE_DIR)/branch_predictor.sv \
+		$(TB_DIR)/tb_branch_predictor.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
 # Run all hazard handling tests
-test_hazards: tb_hazard_scoreboard tb_forwarding_unit
+test_hazards: tb_hazard_scoreboard tb_forwarding_unit tb_branch_predictor
 	@echo "All hazard handling tests completed"
 
 # Run all memory hierarchy tests
@@ -205,4 +213,4 @@ help:
 
 .PHONY: tb_simt_stack tb_warp_scheduler tb_simt_core tb_core test_simt \
 	tb_l1_data_cache tb_shared_memory test_memory \
-	tb_hazard_scoreboard tb_forwarding_unit test_hazards clean help
+	tb_hazard_scoreboard tb_forwarding_unit tb_branch_predictor test_hazards clean help

@@ -111,28 +111,4 @@ module warp_context
     end
   end
 
-  // Count active warps
-  function automatic logic [WARP_ID_WIDTH:0] count_active_warps();
-    logic [WARP_ID_WIDTH:0] count;
-    count = '0;
-    for (int i = 0; i < NUM_WARPS; i++) begin
-      if (warp_state[i].valid && warp_state[i].status != WARP_DONE) begin
-        count = count + 1;
-      end
-    end
-    return count;
-  endfunction
-
-  // Check if all warps are done
-  function automatic logic all_warps_done();
-    logic all_done;
-    all_done = 1'b1;
-    for (int i = 0; i < NUM_WARPS; i++) begin
-      if (warp_state[i].valid && warp_state[i].status != WARP_DONE) begin
-        all_done = 1'b0;
-      end
-    end
-    return all_done;
-  endfunction
-
 endmodule

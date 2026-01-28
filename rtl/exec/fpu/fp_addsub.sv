@@ -107,11 +107,13 @@ module fp_addsub
 
   // Count leading zeros in mant_sum
   always_comb begin
+    logic found;
     leading_zeros = 5'd0;
+    found = 1'b0;
     for (int i = 27; i >= 0; i--) begin
-      if (mant_sum[i]) begin
+      if (mant_sum[i] && !found) begin
         leading_zeros = 5'd27 - i[4:0];
-        break;
+        found = 1'b1;
       end
     end
     if (mant_sum == 28'd0)
