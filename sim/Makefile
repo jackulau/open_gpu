@@ -46,7 +46,8 @@ SIMT_SRCS = \
 	$(SIMT_DIR)/simt_stack.sv \
 	$(SIMT_DIR)/warp_context.sv \
 	$(SIMT_DIR)/warp_scheduler.sv \
-	$(SIMT_DIR)/thread_mask_unit.sv
+	$(SIMT_DIR)/thread_mask_unit.sv \
+	$(SIMT_DIR)/barrier_controller.sv
 
 # Memory sources
 MEMORY_SRCS = \
@@ -106,6 +107,14 @@ tb_warp_scheduler: $(OUT_DIR)
 		$(COMMON_SRCS) \
 		$(SIMT_DIR)/warp_scheduler.sv \
 		$(TB_DIR)/tb_warp_scheduler.sv
+	$(VVP) $(OUT_DIR)/$@.vvp
+
+# Barrier Controller testbench
+tb_barrier_controller: $(OUT_DIR)
+	$(IVERILOG) $(IVFLAGS) -o $(OUT_DIR)/$@.vvp \
+		$(COMMON_SRCS) \
+		$(SIMT_DIR)/barrier_controller.sv \
+		$(TB_DIR)/tb_barrier_controller.sv
 	$(VVP) $(OUT_DIR)/$@.vvp
 
 # SIMT Core testbench
@@ -175,7 +184,7 @@ tb_core: $(OUT_DIR)
 	$(VVP) $(OUT_DIR)/$@.vvp
 
 # Run all SIMT tests
-test_simt: tb_simt_stack tb_warp_scheduler tb_simt_core
+test_simt: tb_simt_stack tb_warp_scheduler tb_barrier_controller tb_simt_core
 	@echo "All SIMT tests completed"
 
 # View waveforms
@@ -211,6 +220,6 @@ help:
 	@echo "  clean              - Remove generated files"
 	@echo "  help               - Show this message"
 
-.PHONY: tb_simt_stack tb_warp_scheduler tb_simt_core tb_core test_simt \
+.PHONY: tb_simt_stack tb_warp_scheduler tb_barrier_controller tb_simt_core tb_core test_simt \
 	tb_l1_data_cache tb_shared_memory test_memory \
 	tb_hazard_scoreboard tb_forwarding_unit tb_branch_predictor test_hazards clean help

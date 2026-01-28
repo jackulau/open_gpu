@@ -69,6 +69,9 @@ module simt_core_top
   logic [WARP_ID_WIDTH-1:0] ctx_issued_warp_id;
   logic ctx_warp_issued;
 
+  // Forward declaration for barrier wake signal
+  logic [NUM_WARPS-1:0] barrier_warp_wake_to_ctx;
+
   warp_context u_warp_context (
     .clk(clk),
     .rst_n(rst_n),
@@ -85,6 +88,7 @@ module simt_core_top
     .status_warp_id(ctx_status_warp_id),
     .status_update(ctx_status_update),
     .new_status(ctx_new_status),
+    .barrier_wake(barrier_warp_wake_to_ctx),
     .issued_warp_id(ctx_issued_warp_id),
     .warp_issued(ctx_warp_issued),
     .contexts(warp_contexts),
@@ -104,12 +108,49 @@ module simt_core_top
   logic sched_issue_ack;
   logic sched_all_done;
 
+  // Extract warp context fields for scheduler (Icarus Verilog compatibility)
+  // Use wire assignments instead of always_comb for better compatibility
+  logic [NUM_WARPS-1:0][DATA_WIDTH-1:0] sched_ctx_pc;
+  logic [NUM_WARPS-1:0][WARP_SIZE-1:0]  sched_ctx_mask;
+  logic [NUM_WARPS-1:0][2:0]            sched_ctx_status;
+  logic [NUM_WARPS-1:0][7:0]            sched_ctx_age;
+  logic [NUM_WARPS-1:0]                 sched_ctx_valid;
+
+  // Direct wire assignments for Icarus compatibility
+  assign sched_ctx_pc[0] = warp_contexts[0].pc;
+  assign sched_ctx_mask[0] = warp_contexts[0].active_mask;
+  assign sched_ctx_status[0] = warp_contexts[0].status;
+  assign sched_ctx_age[0] = warp_contexts[0].age;
+  assign sched_ctx_valid[0] = warp_contexts[0].valid;
+
+  assign sched_ctx_pc[1] = warp_contexts[1].pc;
+  assign sched_ctx_mask[1] = warp_contexts[1].active_mask;
+  assign sched_ctx_status[1] = warp_contexts[1].status;
+  assign sched_ctx_age[1] = warp_contexts[1].age;
+  assign sched_ctx_valid[1] = warp_contexts[1].valid;
+
+  assign sched_ctx_pc[2] = warp_contexts[2].pc;
+  assign sched_ctx_mask[2] = warp_contexts[2].active_mask;
+  assign sched_ctx_status[2] = warp_contexts[2].status;
+  assign sched_ctx_age[2] = warp_contexts[2].age;
+  assign sched_ctx_valid[2] = warp_contexts[2].valid;
+
+  assign sched_ctx_pc[3] = warp_contexts[3].pc;
+  assign sched_ctx_mask[3] = warp_contexts[3].active_mask;
+  assign sched_ctx_status[3] = warp_contexts[3].status;
+  assign sched_ctx_age[3] = warp_contexts[3].age;
+  assign sched_ctx_valid[3] = warp_contexts[3].valid;
+
   warp_scheduler #(
     .NUM_WARPS(NUM_WARPS)
   ) u_warp_scheduler (
     .clk(clk),
     .rst_n(rst_n),
-    .contexts(warp_contexts),
+    .ctx_pc(sched_ctx_pc),
+    .ctx_mask(sched_ctx_mask),
+    .ctx_status(sched_ctx_status),
+    .ctx_age(sched_ctx_age),
+    .ctx_valid(sched_ctx_valid),
     .warp_stall(warp_stall),
     .warp_valid(sched_warp_valid),
     .selected_warp_id(sched_warp_id),
@@ -327,6 +368,11 @@ module simt_core_top
   logic exec_is_branch;
   logic exec_branch_taken_actual;
 
+  // Barrier signals from execute
+  logic exec_barrier_arrive;
+  logic [3:0] exec_barrier_id;
+  logic exec_is_block_barrier;
+
   simt_execute_stage u_execute (
     .clk(clk),
     .rst_n(rst_n),
@@ -360,7 +406,10 @@ module simt_core_top
     .fpu_result(fpu_result),
     .branch_resolved(exec_branch_resolved),
     .is_branch_out(exec_is_branch),
-    .branch_taken_actual(exec_branch_taken_actual)
+    .branch_taken_actual(exec_branch_taken_actual),
+    .barrier_arrive(exec_barrier_arrive),
+    .barrier_id(exec_barrier_id),
+    .is_block_barrier(exec_is_block_barrier)
   );
 
   // Route stack operations to correct warp
@@ -455,6 +504,35 @@ module simt_core_top
   assign simd_fpu_start = decode_valid && decode_decoded.base.is_fpu_op && !pipeline_stall;
   assign fpu_result_valid = simd_fpu_valid;
   assign fpu_result = simd_fpu_result;
+
+  // ============================================================================
+  // Barrier Controller
+  // ============================================================================
+
+  logic [NUM_WARPS-1:0] barrier_warp_wake;
+  logic barrier_released;
+  logic [3:0] released_barrier_id;
+
+  barrier_controller #(
+    .NUM_WARPS(NUM_WARPS),
+    .NUM_BARRIERS(16)
+  ) u_barrier_ctrl (
+    .clk(clk),
+    .rst_n(rst_n),
+    .barrier_arrive(exec_barrier_arrive),
+    .arrive_warp_id(exec_decoded.warp_id),
+    .barrier_id(exec_barrier_id),
+    .is_block_barrier(exec_is_block_barrier),
+    .active_warps(warp_enable),
+    .warp_wake(barrier_warp_wake),
+    .barrier_released(barrier_released),
+    .released_barrier_id(released_barrier_id),
+    .warps_at_barrier(),
+    .barrier_active()
+  );
+
+  // Connect barrier wake to warp context
+  assign barrier_warp_wake_to_ctx = barrier_warp_wake;
 
   // ============================================================================
   // Hazard Detection and Data Forwarding
@@ -703,14 +781,22 @@ module simt_core_top
     ctx_new_mask = exec_new_mask;
   end
 
-  // Status update
+  // Status update logic with barrier support
+  // Barrier wake is handled directly by warp_context via barrier_wake signal
+  // This handles: Barrier block, RET completion
   always_comb begin
     ctx_status_update = 1'b0;
     ctx_status_warp_id = '0;
     ctx_new_status = WARP_READY;
 
-    // Mark warp as done if RET instruction completes
-    if (wb_instr_complete && mem_decoded.base.is_ret) begin
+    // Priority 1: Block warp at barrier (SYNC instruction)
+    if (exec_barrier_arrive && exec_is_block_barrier) begin
+      ctx_status_update = 1'b1;
+      ctx_status_warp_id = exec_decoded.warp_id;
+      ctx_new_status = WARP_BLOCKED;
+    end
+    // Priority 2: Mark warp as done if RET instruction completes
+    else if (wb_instr_complete && mem_decoded.base.is_ret) begin
       ctx_status_update = 1'b1;
       ctx_status_warp_id = wb_complete_warp_id;
       ctx_new_status = WARP_DONE;

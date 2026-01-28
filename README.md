@@ -452,6 +452,39 @@ When threads in a warp take different branch paths, the SIMT stack manages diver
 3. At reconvergence point, pop stack and execute not-taken path
 4. When stack empty, all threads reconverged
 
+## Barrier Synchronization
+
+GPUs provide barrier instructions for synchronizing threads within a block.
+
+### SYNC — Block-Level Barrier
+
+All warps in a block must reach the barrier before any can proceed:
+
+```
+Warp 0: ... SYNC ...  ──┐
+Warp 1: ... SYNC ...  ──┼──▶ All warps blocked until last arrives
+Warp 2: ... SYNC ...  ──┤
+Warp 3: ... SYNC ...  ──┘    Then all wake simultaneously
+```
+
+**Implementation:**
+- Barrier controller tracks arrivals per barrier ID (16 concurrent barriers)
+- Arriving warp status changes to `WARP_BLOCKED`
+- When all active warps arrive, controller sends batch wake signal
+- All blocked warps transition back to `WARP_READY`
+
+### WSYNC — Warp-Level Barrier
+
+Synchronizes all threads within a single warp (useful after shuffle operations):
+
+```asm
+SHFL.XOR  x9, x8, 1       # Exchange with neighbor
+WSYNC                      # Ensure all lanes complete shuffle
+ADD       x10, x8, x9     # Use exchanged data
+```
+
+WSYNC completes immediately since all 32 threads in a warp execute in lockstep.
+
 ---
 
 # Kernels
@@ -617,31 +650,33 @@ The simulation produces detailed execution traces showing cycle-by-cycle state:
   - Python assembler
   - Basic testbench
 
-## In Progress
-
-- [ ] **Phase 2: Pipelining**
+- [x] **Phase 2: Pipelining**
   - 5-stage pipeline implementation
   - Scoreboard for hazard detection
-  - Data forwarding paths
-  - Branch prediction
+  - Data forwarding paths (EX→EX, MEM→EX, WB→ID)
+  - Branch prediction with misprediction recovery
 
-## Planned
+- [x] **Phase 3: SIMT Execution**
+  - 32 threads per warp (WARP_SIZE = 32)
+  - 4 warps per core (WARPS_PER_CORE = 4)
+  - Warp scheduler with GTO (Greedy-Then-Oldest) policy
+  - SIMT stack for branch divergence (32-entry depth)
+  - Barrier synchronization (SYNC/WSYNC instructions)
+  - Thread mask unit for divergence analysis
+  - Vote operations (VOTE.ALL/ANY/BAL)
+  - Shuffle operations (SHFL.IDX/UP/DN/XOR)
 
-- [ ] **Phase 3: SIMT Execution**
-  - 32 threads per warp
-  - Warp scheduler with GTO policy
-  - SIMT stack for branch divergence
-  - Barrier synchronization
-
-- [ ] **Phase 4: Memory Hierarchy**
-  - L1 instruction cache
-  - L1 data cache
-  - L2 shared cache
-  - Shared memory with bank conflict detection
+- [x] **Phase 4: Memory Hierarchy**
+  - L1 instruction cache (16 KB, 4-way)
+  - L1 data cache (32 KB, 4-way)
+  - L2 shared cache (512 KB, 8-way)
+  - Shared memory with 32 banks
   - Memory coalescing unit
 
+## In Progress
+
 - [ ] **Phase 5: Full System**
-  - IEEE 754 FP32 unit
+  - IEEE 754 FP32 unit (implemented, needs integration testing)
   - 8 SMs (32 total cores)
   - Global block scheduler
   - Host interface (AXI-Lite)

@@ -54,7 +54,12 @@ module simt_execute_stage
   // Branch resolution outputs (for branch predictor)
   output logic                          branch_resolved,
   output logic                          is_branch_out,
-  output logic                          branch_taken_actual  // Actual branch outcome
+  output logic                          branch_taken_actual,  // Actual branch outcome
+
+  // Barrier synchronization outputs
+  output logic                          barrier_arrive,       // Warp arriving at barrier
+  output logic [3:0]                    barrier_id,           // Barrier ID (from imm field)
+  output logic                          is_block_barrier      // SYNC vs WSYNC
 );
 
   // Per-lane operands
@@ -273,11 +278,25 @@ module simt_execute_stage
                     is_multicycle_fpu_op(decoded.base.fpu_op) &&
                     !fpu_result_valid;
 
+  // Barrier detection (SYNC/WSYNC instructions)
+  logic is_sync_op;
+  logic is_block_sync;
+  logic is_warp_sync;
+
+  assign is_block_sync = (decoded.base.opcode == OP_SYNC);   // Block-level barrier
+  assign is_warp_sync = (decoded.base.opcode == OP_WSYNC);   // Warp-level barrier
+  assign is_sync_op = is_block_sync || is_warp_sync;
+
   // Branch resolution outputs for branch predictor
   // These are combinational signals indicating branch outcome in current cycle
   assign branch_resolved = valid_in && (decoded.base.branch || decoded.base.jump) && !stall;
   assign is_branch_out = decoded.base.branch;
   assign branch_taken_actual = branch_taken;
+
+  // Barrier synchronization outputs
+  assign barrier_arrive = valid_in && is_sync_op && !stall;
+  assign barrier_id = decoded.base.imm[3:0];  // Barrier ID from immediate field
+  assign is_block_barrier = is_block_sync;
 
   // Pipeline registers
   always_ff @(posedge clk or negedge rst_n) begin
